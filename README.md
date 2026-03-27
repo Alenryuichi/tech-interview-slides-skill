@@ -8,6 +8,32 @@ AI Skill for creating **high-density technical deep-dive presentations** with **
 
 > **v2.0 Breaking Change:** Rebranded from interview-focused to general-purpose technical deep-dive. See [v1.0.0](https://github.com/Alenryuichi/tech-interview-slides-skill/tree/v1.0.0) for the original interview version.
 
+<p align="center">
+  <img src="assets/title-page.png" alt="Title Page — Neon Cyber gradient title with tech tags" width="720" />
+</p>
+
+## Preview
+
+Generated from [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — 14 slides + 10 deep-dive modals, fully automated.
+
+<table>
+<tr>
+<td width="50%"><strong>Table of Contents</strong><br/>Clickable index with <code>goToSlide()</code> navigation<br/><img src="assets/toc.png" alt="TOC slide" /></td>
+<td width="50%"><strong>Architecture Deep Dive</strong><br/>Flow diagrams, code blocks, design philosophy<br/><img src="assets/deep-dive.png" alt="Deep dive slide" /></td>
+</tr>
+<tr>
+<td width="50%"><strong>Core Architecture</strong><br/>Layered arch diagram + process flow<br/><img src="assets/challenges.png" alt="Architecture slide" /></td>
+<td width="50%"><strong>Deep-Dive Modal</strong><br/>Strategy cards, code snippets, tech concepts<br/><img src="assets/modal-deep-dive.png" alt="Modal deep dive" /></td>
+</tr>
+<tr>
+<td width="50%"><strong>Design Decisions / Trade-offs</strong><br/>Comparison tables with pros and cons<br/><img src="assets/decisions.png" alt="Decisions slide" /></td>
+<td width="50%"><strong>Metrics Dashboard</strong><br/>Stat cards with color-coded numbers + arch layers<br/><img src="assets/metrics.png" alt="Metrics slide" /></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><strong>Architecture Summary</strong><br/>Full-stack panorama with layer breakdown and project stats<br/><img src="assets/summary.png" alt="Summary slide" width="720" /></td>
+</tr>
+</table>
+
 ## What's New in v2.0
 
 | Feature | v1.0 (Interview) | v2.0 (Deep Dive) |
