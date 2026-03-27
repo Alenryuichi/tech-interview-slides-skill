@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>autoresearch — 技术架构深度解析</title>
+    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=satoshi@400,500,700&display=swap">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #0a0a0f; --bg-secondary: #12121a; --bg-tertiary: #1a1a24;
+            --text-primary: #ffffff; --text-secondary: #a0a0b0;
+            --accent: #00ff88; --accent-secondary: #00ccff; --accent-glow: rgba(0, 255, 136, 0.3);
+            --orange: #fd6f32; --orange-glow: rgba(253, 111, 50, 0.3);
+            --font-display: 'Clash Display', sans-serif; --font-body: 'Satoshi', sans-serif;
+            --title-size: clamp(2rem, 5vw, 4rem); --h2-size: clamp(1.5rem, 3.5vw, 2.5rem);
+            --h3-size: clamp(1.1rem, 2vw, 1.5rem); --body-size: clamp(0.8rem, 1.3vw, 1.1rem);
+            --small-size: clamp(0.7rem, 1vw, 0.9rem); --slide-padding: clamp(1.5rem, 4vw, 3rem);
+        }
+        html { scroll-behavior: smooth; scroll-snap-type: y mandatory; overflow-x: hidden; }
+        body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-body); line-height: 1.6; }
+        .slide { min-height: 100dvh; scroll-snap-align: start; position: relative; display: flex; align-items: center; justify-content: center; padding: var(--slide-padding); opacity: 0; transform: translateY(10px); transition: opacity 0.5s ease, transform 0.5s ease; }
+        .slide.visible { opacity: 1; transform: translateY(0); }
+        .slide-content { max-width: 1100px; width: 100%; }
+        .gradient-bg { background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0,255,136,0.15), transparent), radial-gradient(ellipse 60% 40% at 80% 50%, rgba(0,204,255,0.08), transparent), radial-gradient(ellipse 50% 30% at 20% 80%, rgba(253,111,50,0.05), transparent); }
+        .grid-bg { background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 60px 60px; }
+        .section-label { font-family: 'JetBrains Mono', monospace; font-size: var(--small-size); font-weight: 500; color: var(--accent); letter-spacing: 0.08em; display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.8rem; }
+        .section-label::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { box-shadow: 0 0 8px var(--accent-glow); } 50% { box-shadow: 0 0 16px var(--accent-glow); } }
+        h1 { font-family: var(--font-display); font-size: var(--title-size); font-weight: 700; line-height: 1.15; }
+        h2 { font-family: var(--font-display); font-size: var(--h2-size); font-weight: 600; line-height: 1.2; margin-bottom: 1rem; }
+        h3 { font-family: var(--font-display); font-size: var(--h3-size); font-weight: 600; line-height: 1.3; }
+        p { font-size: var(--body-size); color: var(--text-secondary); }
+        code { background: rgba(0,255,136,0.1); color: var(--accent); padding: 0.2em 0.4em; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
+        .problem-box { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); border-left: 3px solid #f87171; border-radius: 8px; padding: clamp(0.6rem,1.2vw,1rem) clamp(0.8rem,1.5vw,1.2rem); margin-bottom: 0.6rem; }
+        .problem-label { color: #f87171; font-weight: 600; font-size: 0.85em; margin-bottom: 0.2rem; }
+        .solution-box { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.2); border-left: 3px solid #34d399; border-radius: 8px; padding: clamp(0.6rem,1.2vw,1rem) clamp(0.8rem,1.5vw,1.2rem); margin-bottom: 0.6rem; }
+        .solution-label { color: #34d399; font-weight: 600; font-size: 0.85em; margin-bottom: 0.2rem; }
+        .why-box { background: rgba(0,255,136,0.06); border: 1px solid rgba(0,255,136,0.2); border-left: 3px solid var(--accent); border-radius: 8px; padding: clamp(0.6rem,1.2vw,1rem) clamp(0.8rem,1.5vw,1.2rem); margin-bottom: 0.6rem; }
+        .why-label { color: var(--accent); font-weight: 600; font-size: 0.85em; margin-bottom: 0.2rem; }
+        .flow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.8rem 0; }
+        .flow-node { font-family: 'JetBrains Mono', monospace; font-size: clamp(0.6rem,0.9vw,0.8rem); padding: 0.4em 0.8em; border-radius: 6px; background: var(--bg-tertiary); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); transition: border-color 0.3s; }
+        .flow-node.active { border-color: rgba(0,255,136,0.3); color: var(--accent); background: rgba(0,255,136,0.1); }
+        .flow-node.success { border-color: rgba(52,211,153,0.3); color: #34d399; background: rgba(52,211,153,0.1); }
+        .flow-node.warn { border-color: rgba(251,191,36,0.3); color: #fbbf24; background: rgba(251,191,36,0.1); }
+        .flow-node.blue { border-color: rgba(99,102,241,0.3); color: #818cf8; background: rgba(99,102,241,0.1); }
+        .flow-arrow { color: var(--accent); font-size: 1.2em; }
+        .code-block { background: var(--bg-secondary); border: 1px solid rgba(0,255,136,0.2); border-radius: 8px; padding: clamp(0.75rem,1.5vw,1rem); font-family: 'JetBrains Mono','Fira Code',monospace; font-size: clamp(0.65rem,0.9vw,0.85rem); overflow-x: auto; line-height: 1.5; }
+        .code-block .keyword { color: #ff79c6; } .code-block .string { color: #f1fa8c; } .code-block .function { color: #50fa7b; } .code-block .comment { color: #6272a4; } .code-block .class { color: #8be9fd; }
+        .modal-tag { display: inline-block; background: rgba(99,102,241,0.2); color: var(--accent-secondary); padding: 0.2em 0.6em; border-radius: 4px; font-size: 0.75rem; margin-right: 0.3em; margin-bottom: 0.3em; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: clamp(0.5rem,1vw,1rem); }
+        .stat-card { background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: clamp(0.75rem,1.5vw,1.25rem); text-align: center; transition: border-color 0.3s; }
+        .stat-card:hover { border-color: rgba(0,255,136,0.3); }
+        .stat-number { font-family: 'Clash Display', sans-serif; font-size: clamp(1.5rem,3vw,2.5rem); font-weight: 700; color: var(--accent); line-height: 1.2; }
+        .stat-number.orange { color: var(--orange); } .stat-number.blue { color: var(--accent-secondary); }
+        .stat-label { font-size: var(--small-size); color: var(--text-secondary); }
+        .detail-btn { position: absolute; bottom: calc(var(--slide-padding) + 0.5rem); right: calc(var(--slide-padding) + 0.5rem); background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%); color: var(--bg-primary); border: none; padding: 0.6em 1.2em; border-radius: 8px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 20px var(--accent-glow); z-index: 100; transition: transform 0.2s, box-shadow 0.2s; font-family: var(--font-body); font-size: var(--small-size); }
+        .detail-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 25px var(--accent-glow); }
+        .detail-btn::before { content: '\1F4D6'; margin-right: 0.4em; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal-content { background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: clamp(1.5rem,3vw,2.5rem); max-width: 900px; width: 90%; max-height: 85vh; overflow-y: auto; position: relative; transform: translateY(20px) scale(0.98); transition: transform 0.3s; }
+        .modal-overlay.active .modal-content { transform: translateY(0) scale(1); }
+        .modal-close { position: absolute; top: 1rem; right: 1rem; background: rgba(255,255,255,0.1); border: none; color: var(--text-secondary); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .modal-close:hover { background: rgba(255,255,255,0.2); }
+        .modal-title { font-family: var(--font-display); font-size: clamp(1.2rem,2.5vw,1.8rem); font-weight: 600; margin-bottom: 1.5rem; color: var(--text-primary); }
+        .modal-section { margin-bottom: 1.5rem; }
+        .modal-section h4 { color: var(--accent-secondary); font-size: 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5em; }
+        .modal-section ul { margin-left: 1.2rem; color: var(--text-secondary); font-size: 0.9rem; }
+        .modal-section li { margin-bottom: 0.3rem; }
+        .modal-section p { font-size: 0.9rem; }
+        .strategy-card { border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 0.8rem; margin-bottom: 0.6rem; background: rgba(255,255,255,0.03); }
+        .strategy-card h5 { color: var(--accent); font-size: 0.95rem; margin-bottom: 0.4rem; }
+        .modal-highlight { background: rgba(0,255,136,0.1); border-left: 3px solid var(--accent); padding: 0.8rem 1rem; border-radius: 0 8px 8px 0; margin-top: 0.5rem; font-size: 0.9rem; }
+        .modal-code { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; overflow-x: auto; }
+        .progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-secondary)); z-index: 999; transition: width 0.3s; }
+        .nav-container { position: fixed; right: 1.5rem; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 999; }
+        .nav-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.2); border: none; cursor: pointer; transition: all 0.3s; padding: 0; }
+        .nav-dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); transform: scale(1.4); }
+        .slide-counter { position: fixed; bottom: 1.5rem; left: 1.5rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-secondary); z-index: 999; }
+        .logo { font-family: var(--font-display); font-size: clamp(1.2rem,2vw,1.6rem); font-weight: 700; color: var(--accent); margin-bottom: 1rem; }
+        .logo span { color: var(--text-secondary); font-weight: 400; font-size: 0.7em; }
+        .subtitle { font-size: clamp(0.9rem,1.5vw,1.2rem); color: var(--text-secondary); margin-top: 0.8rem; }
+        .meta { margin-top: 1.5rem; font-family: 'JetBrains Mono', monospace; font-size: var(--small-size); color: var(--text-secondary); opacity: 0.7; }
+        .arch-diagram { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.8rem 0; }
+        .arch-layer { background: var(--bg-secondary); border: 1px solid rgba(0,255,136,0.15); border-radius: 8px; padding: 0.5rem 0.8rem; display: flex; align-items: center; gap: 0.8rem; }
+        .arch-layer.orange { border-color: rgba(253,111,50,0.3); } .arch-layer.blue { border-color: rgba(0,204,255,0.3); } .arch-layer.purple { border-color: rgba(168,85,247,0.3); }
+        .arch-layer-name { font-family: 'JetBrains Mono', monospace; font-size: clamp(0.6rem,0.85vw,0.75rem); color: var(--accent); min-width: 100px; font-weight: 600; }
+        .arch-layer.orange .arch-layer-name { color: var(--orange); } .arch-layer.blue .arch-layer-name { color: var(--accent-secondary); } .arch-layer.purple .arch-layer-name { color: #a855f7; }
+        .arch-layer-content { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+        .arch-item { font-family: 'JetBrains Mono', monospace; font-size: clamp(0.55rem,0.8vw,0.7rem); padding: 0.25em 0.6em; border-radius: 4px; background: rgba(0,255,136,0.08); color: var(--accent); border: 1px solid rgba(0,255,136,0.15); }
+        .arch-item.orange { background: rgba(253,111,50,0.08); color: var(--orange); border-color: rgba(253,111,50,0.15); }
+        .arch-item.blue { background: rgba(0,204,255,0.08); color: var(--accent-secondary); border-color: rgba(0,204,255,0.15); }
+        .arch-item.purple { background: rgba(168,85,247,0.08); color: #a855f7; border-color: rgba(168,85,247,0.15); }
+        .help-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 2000; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        .help-overlay.active { opacity: 1; visibility: visible; }
+        .help-content { background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; padding: 2rem; max-width: 500px; width: 90%; }
+        .help-content h3 { font-family: var(--font-display); color: var(--accent); margin-bottom: 1rem; }
+        .help-row { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.9rem; }
+        .help-key { font-family: 'JetBrains Mono', monospace; background: var(--bg-tertiary); padding: 0.15em 0.5em; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); font-size: 0.85em; }
+        @media (max-width: 768px) { .nav-container { right: 0.5rem; } .nav-dot { width: 6px; height: 6px; } }
+        @media print {
+            .slide { min-height: auto; page-break-after: always; opacity: 1 !important; transform: none !important; padding: 1rem; }
+            .nav-container, .slide-counter, .progress-bar, .detail-btn, .help-overlay { display: none !important; }
+            .modal-overlay { position: relative; opacity: 1 !important; visibility: visible !important; background: white; page-break-before: always; }
+            .modal-content { max-height: none; max-width: 100%; border: 1px solid #ccc; }
+            body { background: white; color: black; }
+        }
+    </style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+<div class="nav-container" id="navDots"></div>
+<div class="slide-counter" id="slideNumber"></div>
+<div class="help-overlay" id="helpOverlay"><div class="help-content"><h3>Keyboard Shortcuts</h3><div class="help-row"><span>Next slide</span><span><span class="help-key">→</span> <span class="help-key">↓</span> <span class="help-key">Space</span></span></div><div class="help-row"><span>Previous slide</span><span><span class="help-key">←</span> <span class="help-key">↑</span></span></div><div class="help-row"><span>First / Last</span><span><span class="help-key">Home</span> <span class="help-key">End</span></span></div><div class="help-row"><span>Open deep dive</span><span><span class="help-key">Enter</span> <span class="help-key">D</span></span></div><div class="help-row"><span>Close modal</span><span><span class="help-key">Esc</span></span></div><div class="help-row"><span>This help</span><span><span class="help-key">?</span></span></div><div style="margin-top:1rem;font-size:0.8rem;color:var(--text-secondary);">Touch: swipe up/down to navigate</div></div></div>
+
+<!-- ===== SLIDE 1: Title ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content" style="text-align:center;">
+        <div class="logo">🔬 autoresearch <span>v0.1</span></div>
+        <h1 style="background:linear-gradient(135deg,var(--accent),var(--accent-secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Autonomous AI Research Agent</h1>
+        <p class="subtitle">Single-GPU · 5-Minute Budget · Autonomous Experiment Loop</p>
+        <p style="margin-top:1rem;">
+            <span class="modal-tag">GPT Pretraining</span>
+            <span class="modal-tag">Muon Optimizer</span>
+            <span class="modal-tag">Agent-Driven</span>
+            <span class="modal-tag">Single File</span>
+        </p>
+        <div class="meta">← → 翻页 · D 深度解析 · ? 快捷键</div>
+    </div>
+</section>
+
+<!-- ===== SLIDE 2: TOC ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">TABLE OF CONTENTS</span>
+        <h2>目录索引 <span style="font-size:0.5em;color:var(--text-secondary);font-weight:400;">(点击编号跳转)</span></h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem 1.5rem;font-size:0.78em;">
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(2)"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;min-width:1.5em;">3</span><span>项目哲学与概览</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(3)"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;min-width:1.5em;">4</span><span>三文件架构</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(4)"><span style="color:var(--orange);font-family:'JetBrains Mono',monospace;min-width:1.5em;">5</span><span>GPT 模型架构</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(5)"><span style="color:var(--orange);font-family:'JetBrains Mono',monospace;min-width:1.5em;">6</span><span>注意力机制</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(6)"><span style="color:var(--orange);font-family:'JetBrains Mono',monospace;min-width:1.5em;">7</span><span>MLP 与前向传播</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(7)"><span style="color:var(--orange);font-family:'JetBrains Mono',monospace;min-width:1.5em;">8</span><span>MuonAdamW 优化器</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(8)"><span style="color:var(--accent-secondary);font-family:'JetBrains Mono',monospace;min-width:1.5em;">9</span><span>训练循环与调度</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(9)"><span style="color:var(--accent-secondary);font-family:'JetBrains Mono',monospace;min-width:1.5em;">10</span><span>数据管线</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(10)"><span style="color:var(--accent-secondary);font-family:'JetBrains Mono',monospace;min-width:1.5em;">11</span><span>Agent 集成</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(11)"><span style="color:var(--accent-secondary);font-family:'JetBrains Mono',monospace;min-width:1.5em;">12</span><span>设计决策</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(12)"><span style="color:var(--text-secondary);font-family:'JetBrains Mono',monospace;min-width:1.5em;">13</span><span>量化指标</span></div>
+            <div style="display:flex;gap:0.5rem;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;" onclick="goToSlide(13)"><span style="color:var(--text-secondary);font-family:'JetBrains Mono',monospace;min-width:1.5em;">14</span><span>总结</span></div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== SLIDE 3: Philosophy & Overview ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">PROJECT PHILOSOPHY</span>
+        <h2>项目哲学与概览</h2>
+        <p style="margin-bottom:0.6rem;">给 AI Agent 一个真实的 LLM 训练环境，让它自主实验：修改代码 → 训练 5 分钟 → 检查结果 → 保留或丢弃 → 重复。</p>
+
+        <div class="problem-box">
+            <div class="problem-label">问题</div>
+            <p>传统 ML 研究依赖人类手动调参，实验吞吐量受限于研究者的工作时间和注意力</p>
+        </div>
+
+        <div class="solution-box">
+            <div class="solution-label">方案</div>
+            <p>自主 Agent 循环：Agent 修改 <code>train.py</code> → 运行实验 → 解析指标 → git commit/revert → 下一个实验。人类睡觉，Agent 持续工作</p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-top:0.8rem;">
+            <div style="background:var(--bg-secondary);border:1px solid rgba(0,255,136,0.15);border-radius:8px;padding:0.6rem;text-align:center;">
+                <div style="font-size:1.4rem;margin-bottom:0.3rem;">🎯</div>
+                <h3 style="font-size:0.85em;color:var(--accent);">单一指标</h3>
+                <p style="font-size:0.75em;">val_bpb (bits per byte)<br>越低越好，vocab 无关</p>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid rgba(253,111,50,0.15);border-radius:8px;padding:0.6rem;text-align:center;">
+                <div style="font-size:1.4rem;margin-bottom:0.3rem;">⏱️</div>
+                <h3 style="font-size:0.85em;color:var(--orange);">固定预算</h3>
+                <p style="font-size:0.75em;">每次训练严格 5 分钟<br>实验可直接对比</p>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid rgba(0,204,255,0.15);border-radius:8px;padding:0.6rem;text-align:center;">
+                <div style="font-size:1.4rem;margin-bottom:0.3rem;">🤖</div>
+                <h3 style="font-size:0.85em;color:var(--accent-secondary);">完全自治</h3>
+                <p style="font-size:0.75em;">Agent 不需要人类确认<br>睡前启动，醒来收获</p>
+            </div>
+        </div>
+
+        <div class="why-box" style="margin-top:0.6rem;">
+            <div class="why-label">设计哲学</div>
+            <p><strong>极简约束 + 完全自由</strong> — 固定时间、固定指标、固定评估，其余一切由 Agent 决定</p>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-philosophy')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 4: Three-File Architecture ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">CORE ARCHITECTURE</span>
+        <h2>三文件架构</h2>
+        <p style="margin-bottom:0.6rem;">整个项目只有三个核心文件，职责严格分离。Agent 只能编辑 <code>train.py</code>，人类只编辑 <code>program.md</code>。</p>
+
+        <div class="arch-diagram">
+            <div class="arch-layer">
+                <span class="arch-layer-name">prepare.py</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item">Constants</span>
+                    <span class="arch-item">Data Download</span>
+                    <span class="arch-item">BPE Tokenizer</span>
+                    <span class="arch-item">Dataloader</span>
+                    <span class="arch-item">evaluate_bpb()</span>
+                </div>
+            </div>
+            <div class="arch-layer orange">
+                <span class="arch-layer-name">train.py</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item orange">GPT Model</span>
+                    <span class="arch-item orange">MuonAdamW</span>
+                    <span class="arch-item orange">Training Loop</span>
+                    <span class="arch-item orange">Hyperparams</span>
+                </div>
+            </div>
+            <div class="arch-layer blue">
+                <span class="arch-layer-name">program.md</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item blue">Agent Instructions</span>
+                    <span class="arch-item blue">Experiment Protocol</span>
+                    <span class="arch-item blue">Logging Format</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flow" style="margin-top:0.6rem;">
+            <div class="flow-node blue">Agent reads program.md</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node active">Edits train.py</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node warn">uv run train.py (5 min)</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node success">Checks val_bpb</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node">keep / discard</div>
+        </div>
+
+        <div class="why-box">
+            <div class="why-label">设计哲学</div>
+            <p><strong>最小可编辑面</strong> — Agent 只触碰一个文件，所有不变量 (评估、数据、常量) 锁定在 prepare.py</p>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-architecture')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 5: GPT Model Architecture ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">GPT MODEL</span>
+        <h2>GPT 模型架构</h2>
+        <p style="margin-bottom:0.6rem;">从 nanochat 精简而来的单文件 GPT 实现，包含 Value Embedding、Residual Lambda、Logit Soft-capping 等现代技巧。</p>
+
+        <div class="arch-diagram">
+            <div class="arch-layer">
+                <span class="arch-layer-name">Embedding</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item">wte (vocab → n_embd)</span>
+                    <span class="arch-item">RMS Norm</span>
+                    <span class="arch-item">x0 = x (residual)</span>
+                </div>
+            </div>
+            <div class="arch-layer orange">
+                <span class="arch-layer-name">Blocks ×N</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item orange">λ_resid * x + λ_x0 * x0</span>
+                    <span class="arch-item orange">CausalSelfAttention</span>
+                    <span class="arch-item orange">MLP (ReLU²)</span>
+                </div>
+            </div>
+            <div class="arch-layer blue">
+                <span class="arch-layer-name">Head</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item blue">RMS Norm</span>
+                    <span class="arch-item blue">lm_head</span>
+                    <span class="arch-item blue">Softcap (tanh/15)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="code-block">
+<pre><span class="comment"># GPTConfig — 模型核心参数</span>
+<span class="keyword">@dataclass</span>
+<span class="keyword">class</span> <span class="class">GPTConfig</span>:
+    sequence_len: <span class="class">int</span> = <span class="string">2048</span>
+    vocab_size:   <span class="class">int</span> = <span class="string">32768</span>
+    n_layer:      <span class="class">int</span> = <span class="string">12</span>
+    n_head:       <span class="class">int</span> = <span class="string">6</span>
+    n_embd:       <span class="class">int</span> = <span class="string">768</span>
+    window_pattern: <span class="class">str</span> = <span class="string">"SSSL"</span></pre>
+        </div>
+
+        <div class="why-box" style="margin-top:0.5rem;">
+            <div class="why-label">设计哲学</div>
+            <p><strong>Depth-Driven Sizing</strong> — <code>model_dim = DEPTH × ASPECT_RATIO</code>，Agent 只需调一个 DEPTH 旋钮即可缩放整个模型</p>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-gpt')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 6: Attention System ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">ATTENTION SYSTEM</span>
+        <h2>注意力机制</h2>
+        <p style="margin-bottom:0.6rem;">CausalSelfAttention 集成了 RoPE、QK-Norm、Value Embedding (ResFormer)、Flash Attention 3 和滑动窗口。</p>
+
+        <div class="flow">
+            <div class="flow-node">Input x</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node blue">Q/K/V Linear</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node active">RoPE + QK-Norm</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node warn">V + gate·VE</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node success">FA3 (causal)</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node">c_proj</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin:0.6rem 0;">
+            <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:0.5rem;">
+                <div style="display:flex;align-items:center;gap:0.3rem;margin-bottom:0.3rem;">
+                    <span style="background:#ef4444;color:white;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.75em;font-weight:600;">特性 1</span>
+                    <strong style="color:#f87171;">Value Embedding</strong>
+                </div>
+                <p style="font-size:0.8em;color:var(--text-secondary);">ResFormer: 每隔一层注入 value embedding，通过 input-dependent gate (2·σ) 控制混合比例</p>
+            </div>
+            <div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:0.5rem;">
+                <div style="display:flex;align-items:center;gap:0.3rem;margin-bottom:0.3rem;">
+                    <span style="background:#6366f1;color:white;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.75em;font-weight:600;">特性 2</span>
+                    <strong style="color:#818cf8;">Sliding Window</strong>
+                </div>
+                <p style="font-size:0.8em;color:var(--text-secondary);">SSSL 模式: 短窗口 (T/2) + 长窗口 (T) 交替，末层强制全局，高效利用 VRAM</p>
+            </div>
+        </div>
+
+        <div class="code-block">
+<pre><span class="comment"># Value Embedding 混合 (ResFormer)</span>
+<span class="keyword">if</span> ve <span class="keyword">is not</span> <span class="keyword">None</span>:
+    gate = <span class="string">2</span> * torch.<span class="function">sigmoid</span>(self.ve_gate(x[..., :self.ve_gate_channels]))
+    v = v + gate.unsqueeze(-<span class="string">1</span>) * ve</pre>
+        </div>
+
+        <div class="why-box">
+            <div class="why-label">设计哲学</div>
+            <p><strong>最大信息流 + 最小内存</strong> — RoPE 免参数位置编码，Value Embedding 增强表达力，滑动窗口节省注意力计算</p>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-attention')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 7: MLP & Forward Pass ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">MLP & FORWARD PASS</span>
+        <h2>MLP 与前向传播</h2>
+        <p style="margin-bottom:0.6rem;">MLP 使用 ReLU² 激活函数，前向传播引入 per-layer residual lambda 和 x0 shortcut 实现训练稳定性。</p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+            <div>
+                <h3 style="margin-bottom:0.4rem;">MLP</h3>
+                <div class="code-block">
+<pre><span class="keyword">class</span> <span class="class">MLP</span>(nn.Module):
+    <span class="keyword">def</span> <span class="function">forward</span>(self, x):
+        x = self.c_fc(x)      <span class="comment"># 4×expand</span>
+        x = F.relu(x).square() <span class="comment"># ReLU²</span>
+        x = self.c_proj(x)    <span class="comment"># project back</span>
+        <span class="keyword">return</span> x</pre>
+                </div>
+            </div>
+            <div>
+                <h3 style="margin-bottom:0.4rem;">Block Residual</h3>
+                <div class="code-block">
+<pre><span class="comment"># Per-layer residual + x0 skip</span>
+x = λ_resid[i] * x + λ_x0[i] * x0
+ve = value_embeds[i](idx)
+x = block(x, ve, cos_sin, ws)
+
+<span class="comment"># Logit soft-capping</span>
+logits = <span class="string">15</span> * tanh(logits/<span class="string">15</span>)</pre>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-top:0.6rem;">
+            <div style="background:var(--bg-secondary);border:1px solid rgba(0,255,136,0.15);border-radius:8px;padding:0.5rem;">
+                <h3 style="font-size:0.8em;color:var(--accent);margin-bottom:0.2rem;">ReLU²</h3>
+                <p style="font-size:0.75em;">ReLU(x)² 产生更稀疏激活，改善梯度信号</p>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid rgba(253,111,50,0.15);border-radius:8px;padding:0.5rem;">
+                <h3 style="font-size:0.8em;color:var(--orange);margin-bottom:0.2rem;">Residual Lambda</h3>
+                <p style="font-size:0.75em;">可学习的 per-layer 缩放因子，稳定深层训练</p>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid rgba(0,204,255,0.15);border-radius:8px;padding:0.5rem;">
+                <h3 style="font-size:0.8em;color:var(--accent-secondary);margin-bottom:0.2rem;">Logit Softcap</h3>
+                <p style="font-size:0.75em;">tanh(z/15)×15 防止 logit 爆炸，稳定 loss</p>
+            </div>
+        </div>
+
+        <div class="why-box" style="margin-top:0.5rem;">
+            <div class="why-label">设计哲学</div>
+            <p><strong>稳定优先</strong> — λ_resid 初始化 1.0，λ_x0 初始化 0.1，softcap = 15，每个设计选择都为训练稳定服务</p>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-mlp')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 8: MuonAdamW Optimizer ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">OPTIMIZER</span>
+        <h2>MuonAdamW 优化器</h2>
+        <p style="margin-bottom:0.6rem;">混合优化器：Muon 用于 2D 矩阵参数（正交化梯度），AdamW 用于 embedding、scalar 等参数。</p>
+
+        <div class="flow">
+            <div class="flow-node blue">参数分组</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node active">Matrix → Muon</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node warn">Scalar/Embed → AdamW</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node success">Unified step()</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin:0.6rem 0;">
+            <div style="background:var(--bg-secondary);border:1px solid rgba(0,255,136,0.15);border-radius:8px;padding:0.6rem;">
+                <h3 style="font-size:0.85em;color:var(--accent);margin-bottom:0.3rem;">Muon Pipeline</h3>
+                <div class="flow" style="flex-direction:column;align-items:flex-start;gap:0.3rem;">
+                    <div class="flow-node active" style="width:100%;text-align:left;">1. Nesterov Momentum</div>
+                    <div class="flow-node active" style="width:100%;text-align:left;">2. Polar Express 正交化</div>
+                    <div class="flow-node active" style="width:100%;text-align:left;">3. NorMuon 方差缩减</div>
+                    <div class="flow-node active" style="width:100%;text-align:left;">4. Cautious Weight Decay</div>
+                </div>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid rgba(253,111,50,0.15);border-radius:8px;padding:0.6rem;">
+                <h3 style="font-size:0.85em;color:var(--orange);margin-bottom:0.3rem;">学习率策略</h3>
+                <table style="width:100%;font-size:0.75em;border-collapse:collapse;">
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:0.3em;">Embedding</td>
+                        <td style="text-align:right;padding:0.3em;color:var(--accent);">0.6</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:0.3em;">Unembedding</td>
+                        <td style="text-align:right;padding:0.3em;color:var(--accent);">0.004</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:0.3em;">Matrix (Muon)</td>
+                        <td style="text-align:right;padding:0.3em;color:var(--orange);">0.04</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0.3em;">Scalar</td>
+                        <td style="text-align:right;padding:0.3em;color:var(--accent-secondary);">0.5</td>
+                    </tr>
+                </table>
+                <p style="font-size:0.7em;margin-top:0.3rem;">LR ∝ 1/√(d_model/768)</p>
+            </div>
+        </div>
+
+        <div class="why-box">
+            <div class="why-label">设计哲学</div>
+            <p><strong>参数形状决定优化策略</strong> — 2D 矩阵用 Muon (正交化更适合)，1D/embedding 用 AdamW (更稳定)</p>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-optimizer')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 9: Training Loop ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">TRAINING LOOP</span>
+        <h2>训练循环与调度</h2>
+        <p style="margin-bottom:0.6rem;">以时间 (而非 step) 为进度基准，固定 5 分钟训练预算，前 10 步为编译预热不计入时间。</p>
+
+        <div class="flow">
+            <div class="flow-node">Compile warmup (10 steps)</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node active">Training (TIME_BUDGET=300s)</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node warn">LR warmdown (50%)</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node success">evaluate_bpb()</div>
+        </div>
+
+        <div class="code-block" style="margin:0.6rem 0;">
+<pre><span class="comment"># 时间驱动的 LR 调度</span>
+progress = total_training_time / TIME_BUDGET  <span class="comment"># 0→1</span>
+
+<span class="keyword">def</span> <span class="function">get_lr_multiplier</span>(progress):
+    <span class="keyword">if</span> progress < WARMUP_RATIO:       <span class="comment"># 线性预热 (默认 0%)</span>
+        <span class="keyword">return</span> progress / WARMUP_RATIO
+    <span class="keyword">elif</span> progress < <span class="string">1.0</span> - WARMDOWN_RATIO:  <span class="comment"># 恒定 LR</span>
+        <span class="keyword">return</span> <span class="string">1.0</span>
+    <span class="keyword">else</span>:                              <span class="comment"># 线性冷却 (50%)</span>
+        cooldown = (<span class="string">1.0</span> - progress) / WARMDOWN_RATIO
+        <span class="keyword">return</span> cooldown + (<span class="string">1</span> - cooldown) * FINAL_LR_FRAC</pre>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+            <div class="solution-box">
+                <div class="solution-label">GC 管理</div>
+                <p style="font-size:0.85em;">Step 0: <code>gc.collect() → gc.freeze() → gc.disable()</code><br>每 5000 步: 一次 <code>gc.collect()</code><br>避免 ~500ms GC stall</p>
+            </div>
+            <div class="solution-box">
+                <div class="solution-label">Fast-Fail</div>
+                <p style="font-size:0.85em;"><code>if isnan(loss) or loss > 100: exit(1)</code><br>发散立即终止，不浪费 5 分钟预算</p>
+            </div>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-training')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 10: Data Pipeline ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">DATA PIPELINE</span>
+        <h2>数据管线</h2>
+        <p style="margin-bottom:0.6rem;">从 Parquet 分片下载 → BPE 分词器训练 → BOS 对齐的最佳拟合打包 Dataloader，100% 利用率零 padding。</p>
+
+        <div class="flow">
+            <div class="flow-node">HuggingFace Parquet</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node blue">rustbpe Tokenizer</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node active">tiktoken Encoding</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node warn">Best-Fit Packing</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node success">GPU Tensor</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin:0.6rem 0;">
+            <div style="background:var(--bg-secondary);border:1px solid rgba(0,255,136,0.15);border-radius:8px;padding:0.6rem;">
+                <h3 style="font-size:0.85em;color:var(--accent);margin-bottom:0.3rem;">Tokenizer</h3>
+                <ul style="font-size:0.8em;color:var(--text-secondary);margin-left:1rem;">
+                    <li>rustbpe 训练，vocab_size = <strong>8192</strong></li>
+                    <li>GPT-4 split pattern</li>
+                    <li>4 个 special tokens (reserved)</li>
+                    <li>导出为 tiktoken pickle</li>
+                </ul>
+            </div>
+            <div style="background:var(--bg-secondary);border:1px solid rgba(253,111,50,0.15);border-radius:8px;padding:0.6rem;">
+                <h3 style="font-size:0.85em;color:var(--orange);margin-bottom:0.3rem;">Dataloader</h3>
+                <ul style="font-size:0.8em;color:var(--text-secondary);margin-left:1rem;">
+                    <li>每行以 BOS 开头</li>
+                    <li>Best-fit packing: 最大文档优先填入</li>
+                    <li>无法完全填入时裁剪最短文档</li>
+                    <li>Pin memory → non-blocking copy</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="why-box">
+            <div class="why-label">设计哲学</div>
+            <p><strong>零浪费</strong> — Best-fit packing 保证 100% 利用率 (无 padding)，pinned memory 实现异步 CPU→GPU 传输</p>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-data')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 11: Agent Integration ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">AGENT INTEGRATION</span>
+        <h2>Agent 集成</h2>
+        <p style="margin-bottom:0.6rem;"><code>program.md</code> 是轻量级 "skill"，定义 Agent 的实验协议、约束边界和日志格式。Agent 按此协议自主循环。</p>
+
+        <div class="problem-box">
+            <div class="problem-label">约束</div>
+            <p>Agent 只能修改 <code>train.py</code>，不能改 <code>prepare.py</code>、不能安装新包、不能修改评估函数</p>
+        </div>
+
+        <div class="flow" style="margin:0.6rem 0;">
+            <div class="flow-node active">Setup</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node warn">Baseline Run</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node blue" style="border-style:dashed;">LOOP FOREVER</div>
+        </div>
+
+        <div style="background:var(--bg-secondary);border:1px solid rgba(0,204,255,0.15);border-radius:8px;padding:0.6rem;margin-bottom:0.5rem;">
+            <h3 style="font-size:0.85em;color:var(--accent-secondary);margin-bottom:0.3rem;">实验循环</h3>
+            <div class="flow" style="flex-direction:column;align-items:flex-start;gap:0.2rem;">
+                <div class="flow-node" style="width:100%;text-align:left;">1. 查看 git 状态，制定实验思路</div>
+                <div class="flow-node active" style="width:100%;text-align:left;">2. 修改 train.py → git commit</div>
+                <div class="flow-node warn" style="width:100%;text-align:left;">3. uv run train.py > run.log 2>&1</div>
+                <div class="flow-node blue" style="width:100%;text-align:left;">4. grep val_bpb run.log → 记录到 results.tsv</div>
+                <div class="flow-node success" style="width:100%;text-align:left;">5. 改善 → keep; 未改善 → git reset; crash → fix/skip</div>
+            </div>
+        </div>
+
+        <div class="why-box">
+            <div class="why-label">设计哲学</div>
+            <p><strong>NEVER STOP</strong> — Agent 永不暂停询问人类，人类可能在睡觉。卡住了就更用力想，尝试更激进的改动</p>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-agent')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 12: Design Decisions ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">DESIGN DECISIONS</span>
+        <h2>设计决策 / Trade-offs</h2>
+        <p style="margin-bottom:0.6rem;">每个设计选择背后都有清晰的权衡取舍。</p>
+
+        <table style="width:100%;font-size:0.85em;border-collapse:collapse;">
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);">
+                <th style="text-align:left;padding:0.5em;">决策</th>
+                <th style="text-align:center;padding:0.5em;">优势</th>
+                <th style="text-align:center;padding:0.5em;">代价</th>
+            </tr>
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                <td style="padding:0.5em;"><strong>单文件可编辑</strong></td>
+                <td style="text-align:center;padding:0.5em;color:var(--accent);">✅ 范围可控，diff 可审</td>
+                <td style="text-align:center;padding:0.5em;color:#f87171;">Agent 无法改数据/评估</td>
+            </tr>
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                <td style="padding:0.5em;"><strong>固定 5 分钟预算</strong></td>
+                <td style="text-align:center;padding:0.5em;color:var(--accent);">✅ 实验可直接对比</td>
+                <td style="text-align:center;padding:0.5em;color:#f87171;">跨平台结果不可比</td>
+            </tr>
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                <td style="padding:0.5em;"><strong>BPB 指标</strong></td>
+                <td style="text-align:center;padding:0.5em;color:var(--accent);">✅ Vocab-size 无关</td>
+                <td style="text-align:center;padding:0.5em;color:#f87171;">计算量稍大于 PPL</td>
+            </tr>
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                <td style="padding:0.5em;"><strong>单 GPU</strong></td>
+                <td style="text-align:center;padding:0.5em;color:var(--accent);">✅ 零分布式复杂度</td>
+                <td style="text-align:center;padding:0.5em;color:#f87171;">模型规模有上限</td>
+            </tr>
+            <tr>
+                <td style="padding:0.5em;"><strong>极简依赖</strong></td>
+                <td style="text-align:center;padding:0.5em;color:var(--accent);">✅ 自包含，易于 fork</td>
+                <td style="text-align:center;padding:0.5em;color:#f87171;">仅支持 NVIDIA GPU</td>
+            </tr>
+        </table>
+
+        <div class="why-box" style="margin-top:0.6rem;">
+            <div class="why-label">设计哲学</div>
+            <p><strong>简单性准则 (Simplicity Criterion)</strong> — 所有条件相等时，更简单更好。删除代码获得同等或更好结果 = 简化胜利</p>
+        </div>
+    </div>
+    <button class="detail-btn" onclick="openModal('modal-decisions')">深度解析</button>
+</section>
+
+<!-- ===== SLIDE 13: Metrics ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content">
+        <span class="section-label">METRICS</span>
+        <h2>量化指标</h2>
+        <div class="stat-grid" style="margin-bottom:1.5rem;">
+            <div class="stat-card">
+                <div class="stat-number">3</div>
+                <div class="stat-label">核心文件</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number orange">5 min</div>
+                <div class="stat-label">训练预算</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number blue">~50M</div>
+                <div class="stat-label">默认参数量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">8192</div>
+                <div class="stat-label">Vocab Size</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number orange">~12/hr</div>
+                <div class="stat-label">实验吞吐量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number blue">~100</div>
+                <div class="stat-label">一夜实验数</div>
+            </div>
+        </div>
+
+        <div class="arch-diagram">
+            <div class="arch-layer">
+                <span class="arch-layer-name">Constants</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item">MAX_SEQ_LEN=2048</span>
+                    <span class="arch-item">TIME_BUDGET=300s</span>
+                    <span class="arch-item">EVAL_TOKENS=20M</span>
+                </div>
+            </div>
+            <div class="arch-layer orange">
+                <span class="arch-layer-name">Defaults</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item orange">DEPTH=8</span>
+                    <span class="arch-item orange">ASPECT_RATIO=64</span>
+                    <span class="arch-item orange">BATCH=524K tok</span>
+                    <span class="arch-item orange">DEVICE_BATCH=128</span>
+                </div>
+            </div>
+            <div class="arch-layer blue">
+                <span class="arch-layer-name">Output</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item blue">val_bpb</span>
+                    <span class="arch-item blue">peak_vram_mb</span>
+                    <span class="arch-item blue">mfu_percent</span>
+                    <span class="arch-item blue">total_tokens_M</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== SLIDE 14: Summary ===== -->
+<section class="slide gradient-bg grid-bg">
+    <div class="slide-content" style="text-align:center;">
+        <div class="logo">🔬 autoresearch <span>v0.1</span></div>
+        <h1 style="background:linear-gradient(135deg,var(--accent),var(--accent-secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Architecture Summary</h1>
+        <div class="arch-diagram" style="text-align:left;margin:1rem auto;max-width:700px;">
+            <div class="arch-layer">
+                <span class="arch-layer-name">Agent Layer</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item">program.md</span>
+                    <span class="arch-item">Experiment Loop</span>
+                    <span class="arch-item">Git Integration</span>
+                </div>
+            </div>
+            <div class="arch-layer orange">
+                <span class="arch-layer-name">Model Layer</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item orange">GPT</span>
+                    <span class="arch-item orange">CausalSelfAttention</span>
+                    <span class="arch-item orange">MLP (ReLU²)</span>
+                    <span class="arch-item orange">Value Embedding</span>
+                </div>
+            </div>
+            <div class="arch-layer blue">
+                <span class="arch-layer-name">Optim Layer</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item blue">Muon</span>
+                    <span class="arch-item blue">AdamW</span>
+                    <span class="arch-item blue">LR Schedule</span>
+                    <span class="arch-item blue">Cautious WD</span>
+                </div>
+            </div>
+            <div class="arch-layer purple">
+                <span class="arch-layer-name">Data Layer</span>
+                <div class="arch-layer-content">
+                    <span class="arch-item purple">rustbpe</span>
+                    <span class="arch-item purple">Best-Fit Packing</span>
+                    <span class="arch-item purple">Parquet Shards</span>
+                    <span class="arch-item purple">evaluate_bpb</span>
+                </div>
+            </div>
+        </div>
+        <p style="margin-top:1rem;">
+            <span class="modal-tag">14 Slides</span>
+            <span class="modal-tag">10 Deep Dives</span>
+            <span class="modal-tag">~630 Lines Python</span>
+            <span class="modal-tag">@karpathy</span>
+        </p>
+        <div class="meta">← → 翻页 · D 深度解析 · ? 快捷键</div>
+    </div>
+</section>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- Modal: Philosophy --><div class="modal-overlay" id="modal-philosophy"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-philosophy')">✕</button><h3 class="modal-title">🔬 项目哲学 — 深度解析</h3><div class="modal-section"><h4>📌 核心概念</h4><p>autoresearch 的核心思想来自 Andrej Karpathy 的一个设想：<strong>给 AI Agent 一个真实的 ML 训练环境，让它自主做研究</strong>。不是模拟，不是 benchmark，而是真正的从零训练 LLM。</p><ul><li><strong>自主研究</strong> — Agent 独立提出假设、实现代码修改、运行实验、分析结果</li><li><strong>固定预算</strong> — 每次实验精确 5 分钟 (wall clock training time)，排除编译/startup 时间</li><li><strong>进化压力</strong> — 只有改善 val_bpb 的修改被保留，形成自然的"适者生存"</li></ul></div><div class="modal-section"><h4>🏗️ 范式对比</h4><div class="strategy-card"><h5>传统 ML 研究</h5><ul><li>人类手动设计实验、调参、分析</li><li>受限于工作时间 (8h/天)</li><li>实验间等待时间长</li></ul></div><div class="strategy-card"><h5>autoresearch 范式</h5><ul><li>Agent 24/7 自主实验</li><li>~12 实验/小时，一夜 ~100 实验</li><li>严格的 keep/discard 协议，无人工干预</li></ul></div></div><div class="modal-section"><h4>⚙️ Simplicity Criterion</h4><div class="modal-code">All else being equal, simpler is better.
+A 0.001 val_bpb improvement that adds 20 lines of hacky code? Probably not worth it.
+A 0.001 val_bpb improvement from deleting code? Definitely keep.
+An improvement of ~0 but much simpler code? Keep.</div></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">Evolutionary Search</span><span class="modal-tag">Fixed-Budget Evaluation</span><span class="modal-tag">Single-Metric Optimization</span><span class="modal-tag">Minimal Surface Area</span></p><div class="modal-highlight"><strong>核心思路：</strong>极简约束产生最大自由度——固定时间、固定指标、固定评估，其余一切由 Agent 决定。</div></div></div></div>
+
+<!-- Modal: Architecture --><div class="modal-overlay" id="modal-architecture"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-architecture')">✕</button><h3 class="modal-title">📁 三文件架构 — 深度解析</h3><div class="modal-section"><h4>📌 核心概念</h4><p>整个项目刻意保持最小规模：三个文件各有明确职责，形成"固定基础设施 + 可变实验代码 + 元程序"的三层架构。</p></div><div class="modal-section"><h4>🏗️ 文件职责</h4><div class="strategy-card"><h5>prepare.py — 不可变基础设施 (402 行)</h5><ul><li><code>MAX_SEQ_LEN=2048, TIME_BUDGET=300, EVAL_TOKENS=20M</code> — 全局常量</li><li><code>download_data()</code> — 多进程下载 HuggingFace Parquet 分片</li><li><code>train_tokenizer()</code> — rustbpe 训练 → tiktoken 编码 → token_bytes lookup</li><li><code>make_dataloader()</code> — BOS-aligned best-fit packing，零 padding</li><li><code>evaluate_bpb()</code> — BPB 评估 (ground truth metric)</li></ul></div><div class="strategy-card"><h5>train.py — Agent 的画布 (630 行)</h5><ul><li>GPT 模型 (GPTConfig, CausalSelfAttention, MLP, Block)</li><li>MuonAdamW 优化器 (Muon + AdamW 混合)</li><li>超参数区域 (DEPTH, ASPECT_RATIO, LR, etc.)</li><li>训练循环 (时间驱动, LR schedule, GC 管理)</li></ul></div><div class="strategy-card"><h5>program.md — 人类的画布 (115 行)</h5><ul><li>Setup 协议: 创建分支, 读取文件, 验证数据</li><li>Experiment loop: 修改 → commit → run → log → keep/discard</li><li>Output 格式: results.tsv (tab-separated)</li><li><strong>NEVER STOP</strong> 指令: Agent 永不暂停</li></ul></div></div><div class="modal-section"><h4>⚙️ 依赖关系</h4><div class="modal-code">train.py  →  from prepare import MAX_SEQ_LEN, TIME_BUDGET, Tokenizer, make_dataloader, evaluate_bpb
+train.py  →  from kernels import get_kernel  (Flash Attention 3)
+prepare.py → rustbpe, tiktoken, pyarrow, torch (固定依赖)
+program.md → 纯文本，无代码依赖</div></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">Separation of Concerns</span><span class="modal-tag">Immutable Infrastructure</span><span class="modal-tag">Single Responsibility</span><span class="modal-tag">Minimal Attack Surface</span></p><div class="modal-highlight"><strong>核心思路：</strong>通过严格的 "谁能改什么" 边界，让 Agent 在安全围栏内最大化创造力。</div></div></div></div>
+
+<!-- Modal: GPT --><div class="modal-overlay" id="modal-gpt"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-gpt')">✕</button><h3 class="modal-title">🧠 GPT 模型 — 深度解析</h3><div class="modal-section"><h4>📌 核心概念</h4><p>从 nanochat 精简而来的 GPT 实现，保留了最有效的现代技巧：Value Embedding (ResFormer)、per-layer residual lambda、logit soft-capping。</p></div><div class="modal-section"><h4>🏗️ 模型组件</h4><div class="strategy-card"><h5>GPTConfig — Depth-Driven Sizing</h5><ul><li><code>base_dim = DEPTH × ASPECT_RATIO</code> (默认 8 × 64 = 512)</li><li><code>model_dim = round_up(base_dim, HEAD_DIM)</code> → 对齐到 128</li><li><code>num_heads = model_dim / HEAD_DIM</code> → 自动推导</li><li>Agent 只需调 DEPTH 即可缩放整个模型</li></ul></div><div class="strategy-card"><h5>Residual Lambda + x0 Shortcut</h5><ul><li><code>x = λ_resid[i] * x + λ_x0[i] * x0</code> (可学习的 per-layer 标量)</li><li>λ_resid 初始化 1.0，λ_x0 初始化 0.1</li><li>x0 是 embedding 后的原始表示，提供"直达底层"的梯度路径</li></ul></div><div class="strategy-card"><h5>Logit Soft-Capping</h5><ul><li><code>logits = 15 * tanh(logits / 15)</code></li><li>将 logit 范围限制在 [-15, 15]，防止 softmax 数值溢出</li><li>Gemma 2 引入的技术</li></ul></div></div><div class="modal-section"><h4>⚙️ Weight Initialization</h4><div class="modal-code"># Embedding: normal(0, 1)
+# lm_head: normal(0, 0.001)  — 近零初始化
+# Q/K/V: uniform(-s, s) where s = √3 * n_embd^(-0.5)
+# c_proj, mlp.c_proj: zeros  — 残差分支初始为恒等
+# VE gate: zeros  → sigmoid(0) = 0.5, scaled by 2 → 1.0 (neutral)</div></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">Dataclass Config</span><span class="modal-tag">Depth-Driven Scaling</span><span class="modal-tag">Residual Shortcut</span><span class="modal-tag">Soft-Capping</span></p><div class="modal-highlight"><strong>核心思路：</strong>所有超参数都由 DEPTH 派生，Agent 获得一个"单旋钮"接口来控制模型复杂度。</div></div></div></div>
+
+<!-- Modal: Attention --><div class="modal-overlay" id="modal-attention"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-attention')">✕</button><h3 class="modal-title">👁️ 注意力机制 — 深度解析</h3><div class="modal-section"><h4>📌 核心概念</h4><p>CausalSelfAttention 融合了 5 项现代注意力技术：RoPE 位置编码、QK-Norm、Value Embedding、Flash Attention 3、滑动窗口。</p></div><div class="modal-section"><h4>🏗️ 技术细节</h4><div class="strategy-card"><h5>Rotary Position Embedding (RoPE)</h5><ul><li>预计算 cos/sin 缓存，seq_len × 10 长度余量</li><li><code>apply_rotary_emb</code>: 将 x 分为两半，旋转乘法</li><li>优点：相对位置感知 + 零额外参数 + 可外推</li></ul></div><div class="strategy-card"><h5>Value Embedding (ResFormer)</h5><ul><li>交替层注入：<code>has_ve(layer_idx, n_layer)</code> → 每隔一层</li><li>Input-dependent gate: <code>2 * sigmoid(ve_gate(x[:, :, :32]))</code></li><li>Gate 初始化 0 → sigmoid(0) = 0.5 → 2×0.5 = 1.0 (neutral start)</li><li>仅用前 32 维 (ve_gate_channels) 作为 gate 输入 → 参数高效</li></ul></div><div class="strategy-card"><h5>Sliding Window Attention</h5><ul><li>SSSL 模式: S=T/2 短窗口, L=T 全窗口</li><li>每 4 层循环 SSSL: [1024, 1024, 1024, 2048]</li><li>最后一层强制全局: <code>window_sizes[-1] = (long_window, 0)</code></li><li>短窗口减少计算量，长窗口保证全局信息流</li></ul></div></div><div class="modal-section"><h4>⚙️ QK-Norm 实现</h4><div class="modal-code">q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)
+q, k = norm(q), norm(k)  # RMS norm after RoPE
+
+# Flash Attention 3 call
+y = fa3.flash_attn_func(q, k, v, causal=True, window_size=window_size)</div><p style="font-size:0.85em;margin-top:0.5rem;">QK-Norm (RoPE 后 RMS Norm) 防止注意力分数过大，配合 FA3 的高效实现。Hopper GPU 使用 varunneal/flash-attention-3，非 Hopper 回退到 kernels-community/flash-attn3。</p></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">RoPE</span><span class="modal-tag">QK-Norm</span><span class="modal-tag">Value Residual</span><span class="modal-tag">Sliding Window</span><span class="modal-tag">Flash Attention 3</span></p><div class="modal-highlight"><strong>核心思路：</strong>最大信息流 + 最小内存 — RoPE 零参数位置编码，VE 增强表达力，滑动窗口节省 O(T²) 中的 T。</div></div></div></div>
+
+<!-- Modal: MLP --><div class="modal-overlay" id="modal-mlp"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-mlp')">✕</button><h3 class="modal-title">⚡ MLP & Forward Pass — 深度解析</h3><div class="modal-section"><h4>📌 核心概念</h4><p>MLP 使用 ReLU² 而非 GELU/SiLU，前向传播通过 residual lambda 和 x0 shortcut 实现稳定的深层训练。</p></div><div class="modal-section"><h4>🏗️ ReLU² 激活</h4><div class="strategy-card"><h5>为什么用 ReLU² 而不是 GELU/SiLU?</h5><ul><li><code>F.relu(x).square()</code> — 两次运算，比 GELU 更快</li><li>产生更稀疏的激活模式 (负值归零 + 小值平方后更小)</li><li>更清晰的梯度信号：导数 = 2·ReLU(x) (非零部分线性)</li><li>在小模型规模下，ReLU² 与 SiLU 性能接近且更高效</li></ul></div></div><div class="modal-section"><h4>⚙️ Forward Pass 完整流程</h4><div class="modal-code">x = self.transformer.wte(idx)     # token embedding
+x = norm(x)                        # 初始 RMS norm
+x0 = x                             # 保存原始表示
+
+for i, block in enumerate(self.transformer.h):
+    x = self.resid_lambdas[i] * x + self.x0_lambdas[i] * x0
+    ve = self.value_embeds[str(i)](idx) if str(i) in self.value_embeds else None
+    x = block(x, ve, cos_sin, self.window_sizes[i])
+
+x = norm(x)                        # 最终 RMS norm
+logits = self.lm_head(x).float()   # float32 for precision
+logits = 15 * torch.tanh(logits / 15)  # soft-capping</div></div><div class="modal-section"><h4>📊 FLOPs 估算</h4><p>估算公式: <code>6 × (non-embedding params) + Σ(12 × H × D_head × effective_seq)</code>，其中 effective_seq 取决于滑动窗口大小。</p></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">ReLU²</span><span class="modal-tag">x0 Shortcut</span><span class="modal-tag">Per-Layer Lambda</span><span class="modal-tag">Soft-Capping</span></p><div class="modal-highlight"><strong>核心思路：</strong>每个组件都服务于训练稳定性——c_proj 零初始化让残差分支从恒等开始，λ_x0=0.1 提供弱但持续的底层梯度路径。</div></div></div></div>
+
+<!-- Modal: Optimizer --><div class="modal-overlay" id="modal-optimizer"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-optimizer')">✕</button><h3 class="modal-title">🔧 MuonAdamW 优化器 — 深度解析</h3><div class="modal-section"><h4>📌 核心概念</h4><p>MuonAdamW 是一个混合优化器：<strong>Muon</strong> 处理 2D 矩阵参数 (Q/K/V/projection)，<strong>AdamW</strong> 处理其余参数。两者通过统一的 <code>step()</code> 接口协作。</p></div><div class="modal-section"><h4>🏗️ Muon 四步流水线</h4><div class="strategy-card"><h5>1. Nesterov Momentum</h5><ul><li>动量从 0.85 线性增到 0.95 (300 步预热)</li><li><code>g = grad.lerp_(momentum_buffer, momentum)</code></li></ul></div><div class="strategy-card"><h5>2. Polar Express 正交化</h5><ul><li>将梯度矩阵正交化，消除参数间的冗余更新</li><li>使用 5 次迭代的矩阵多项式近似: <code>X = a*X + X @ (b*A + c*A²)</code></li><li>系数硬编码在 <code>polar_express_coeffs</code> (5 组 float)</li></ul></div><div class="strategy-card"><h5>3. NorMuon 方差缩减</h5><ul><li>EMA 跟踪方差: <code>second_momentum_buffer.lerp_(v_mean, 1-β₂)</code></li><li>归一化更新幅度，使不同层的有效 LR 一致</li></ul></div><div class="strategy-card"><h5>4. Cautious Weight Decay</h5><ul><li><code>mask = (g * params) >= 0</code></li><li>只对梯度和参数同号的维度施加 decay</li><li>避免与梯度方向"打架"</li></ul></div></div><div class="modal-section"><h4>⚙️ 参数分组策略</h4><div class="modal-code">param_groups = [
+    (lm_head,      'adamw', lr=0.004),   # unembedding
+    (wte,          'adamw', lr=0.6),      # token embedding
+    (value_embeds, 'adamw', lr=0.6),      # value embeddings
+    (resid_λ,      'adamw', lr=0.005),    # residual scalars
+    (x0_λ,         'adamw', lr=0.5),      # x0 scalars
+    (matrix_*,     'muon',  lr=0.04),     # 2D weights (by shape)
+]
+# LR ∝ 1/√(d_model/768) — 维度缩放</div></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">Composite Optimizer</span><span class="modal-tag">Shape-Based Routing</span><span class="modal-tag">Gradient Orthogonalization</span><span class="modal-tag">Cautious Update</span></p><div class="modal-highlight"><strong>核心思路：</strong>参数的几何形状决定最优更新策略——2D 矩阵从正交化中受益，而 1D/embedding 更适合传统自适应方法。</div></div></div></div>
+
+<!-- Modal: Training --><div class="modal-overlay" id="modal-training"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-training')">✕</button><h3 class="modal-title">🔄 训练循环 — 深度解析</h3><div class="modal-section"><h4>📌 核心概念</h4><p>训练循环以<strong>挂钟时间</strong> (而非 step 数) 作为进度基准。前 10 步为 torch.compile 预热，不计入 TIME_BUDGET。</p></div><div class="modal-section"><h4>🏗️ 时间驱动调度</h4><div class="strategy-card"><h5>LR Schedule: Trapezoidal</h5><ul><li>Warmup (默认 0%): <code>progress / WARMUP_RATIO</code></li><li>Constant (前 50%): LR = initial_lr</li><li>Warmdown (后 50%): 线性降至 <code>FINAL_LR_FRAC × initial_lr</code></li><li>所有 param_group 共享同一 multiplier</li></ul></div><div class="strategy-card"><h5>Muon Momentum Schedule</h5><ul><li>前 300 步: 0.85 → 0.95 线性增长</li><li>动量预热避免早期振荡</li></ul></div><div class="strategy-card"><h5>Weight Decay Schedule</h5><ul><li><code>WD × (1 - progress)</code> — 线性衰减到零</li><li>训练后期减少正则化，让模型更自由地拟合</li></ul></div></div><div class="modal-section"><h4>⚙️ 关键实现细节</h4><div class="modal-code"># Gradient accumulation
+tokens_per_fwdbwd = DEVICE_BATCH_SIZE * MAX_SEQ_LEN  # 128 × 2048 = 262144
+grad_accum_steps = TOTAL_BATCH_SIZE // tokens_per_fwdbwd  # 524288 / 262144 = 2
+
+# GC management: Python GC causes ~500ms stalls
+if step == 0:
+    gc.collect(); gc.freeze(); gc.disable()
+elif (step + 1) % 5000 == 0:
+    gc.collect()
+
+# EMA loss for logging (not used for decisions)
+smooth_train_loss = 0.9 * smooth_train_loss + 0.1 * train_loss_f</div></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">Time-Based Progress</span><span class="modal-tag">Trapezoidal Schedule</span><span class="modal-tag">GC Freezing</span><span class="modal-tag">Fast-Fail</span></p><div class="modal-highlight"><strong>核心思路：</strong>时间驱动而非 step 驱动——不同架构、不同 batch size 的实验在同一时间预算下公平对比。</div></div></div></div>
+
+<!-- Modal: Data --><div class="modal-overlay" id="modal-data"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-data')">✕</button><h3 class="modal-title">📊 数据管线 — 深度解析</h3><div class="modal-section"><h4>📌 核心概念</h4><p>数据管线分为一次性准备 (download + tokenizer) 和运行时 (dataloader + evaluation) 两个阶段，全部封装在 prepare.py 中作为不可变基础设施。</p></div><div class="modal-section"><h4>🏗️ Tokenizer 训练</h4><div class="strategy-card"><h5>rustbpe + tiktoken 双层架构</h5><ul><li><strong>训练</strong>: rustbpe (Rust 实现，快速 BPE 训练)</li><li><strong>推理</strong>: tiktoken (OpenAI 的高性能编码器)</li><li>Vocab size: 8192 (小而高效，适合小模型)</li><li>Split pattern: GPT-4 风格，但 \p{N}{1,2} 替代 {1,3}</li><li>4 个 special tokens: <code>&lt;|reserved_0|&gt;</code> .. <code>&lt;|reserved_3|&gt;</code></li></ul></div></div><div class="modal-section"><h4>⚙️ Best-Fit Packing Dataloader</h4><div class="modal-code">def make_dataloader(tokenizer, B, T, split):
+    # 每行容量: T + 1 (用于 input/target shift)
+    # 每行以 BOS 开头
+
+    # Packing 策略:
+    # 1. 从 buffer 中找最大的能完整放入的文档
+    # 2. 如果没有文档能放入 → 裁剪最短文档填满剩余空间
+    # 结果: 100% 利用率, 零 padding
+
+    # Memory:
+    # row_buffer [B, T+1]  — CPU 拼装
+    # cpu_buffer [2*B*T]   — pinned memory
+    # gpu_buffer [2*B*T]   — CUDA
+    # non_blocking copy: cpu → gpu</div></div><div class="modal-section"><h4>📊 BPB 评估</h4><ul><li><strong>BPB</strong> = Bits Per Byte = total_nats / (ln2 × total_bytes)</li><li>token_bytes lookup: 每个 token 编码后的 UTF-8 字节数</li><li>Special tokens (byte_length=0) 被排除</li><li>固定 EVAL_TOKENS = 20M tokens</li><li>与 vocab size 无关 → 架构变化可公平对比</li></ul></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">Two-Phase Pipeline</span><span class="modal-tag">Best-Fit Bin Packing</span><span class="modal-tag">Pinned Memory</span><span class="modal-tag">Vocab-Invariant Metric</span></p><div class="modal-highlight"><strong>核心思路：</strong>零浪费 (100% utilization) + 公平评估 (BPB 不依赖 vocab size) = Agent 可以自由改变词汇表大小而不影响实验可比性。</div></div></div></div>
+
+<!-- Modal: Agent --><div class="modal-overlay" id="modal-agent"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-agent')">✕</button><h3 class="modal-title">🤖 Agent 集成 — 深度解析</h3><div class="modal-section"><h4>📌 核心概念</h4><p><code>program.md</code> 本质上是一个超轻量级的 "skill" 或 "system prompt"，定义了 Agent 的行为协议。它不是代码，而是自然语言规则。</p></div><div class="modal-section"><h4>🏗️ 协议结构</h4><div class="strategy-card"><h5>Setup Phase</h5><ul><li>与人类协商 run tag (如 <code>mar5</code>)</li><li>创建分支: <code>git checkout -b autoresearch/&lt;tag&gt;</code></li><li>读取所有源文件建立上下文</li><li>验证数据存在，初始化 results.tsv</li></ul></div><div class="strategy-card"><h5>Experiment Loop (LOOP FOREVER)</h5><ul><li>修改 train.py → git commit → <code>uv run train.py > run.log 2>&1</code></li><li>grep 解析结果 → 记录到 results.tsv (不 commit)</li><li>改善 → 保留 commit; 未改善 → <code>git reset</code></li><li>崩溃 → 尝试修复，修不好就跳过</li></ul></div><div class="strategy-card"><h5>Constraints</h5><ul><li>只能修改 train.py</li><li>不能安装新包</li><li>不能修改评估函数</li><li>超时 (>10 min) → kill → 视为失败</li></ul></div></div><div class="modal-section"><h4>⚙️ Logging Format</h4><div class="modal-code"># results.tsv (tab-separated)
+commit	val_bpb	memory_gb	status	description
+a1b2c3d	0.997900	44.0	keep	baseline
+b2c3d4e	0.993200	44.2	keep	increase LR to 0.04
+c3d4e5f	1.005000	44.0	discard	switch to GeLU activation
+d4e5f6g	0.000000	0.0	crash	double model width (OOM)</div></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">Skill-as-Markdown</span><span class="modal-tag">Git-Based Versioning</span><span class="modal-tag">Autonomous Loop</span><span class="modal-tag">Structured Logging</span></p><div class="modal-highlight"><strong>核心思路：</strong>program.md 是"研究组织的源代码"——人类不编程 Python，而是编程 Agent 的行为规则。</div></div></div></div>
+
+<!-- Modal: Decisions --><div class="modal-overlay" id="modal-decisions"><div class="modal-content"><button class="modal-close" onclick="closeModal('modal-decisions')">✕</button><h3 class="modal-title">🎯 设计决策 — 深度解析</h3><div class="modal-section"><h4>📌 决策 1: 固定时间 vs 固定 Step 数</h4><div class="strategy-card"><h5>选择: 固定时间 (5 分钟)</h5><ul><li>实验可直接对比，无论 Agent 怎么改 batch size/model size</li><li>自动适应不同硬件：H100 跑更多 step，小卡跑更少但同样 5 分钟</li><li>Agent 的优化目标变成"在固定时间内找最优模型"</li></ul></div><div class="strategy-card"><h5>代价: 跨平台不可比</h5><ul><li>H100 上的 baseline 和 RTX 3090 上的 baseline 数值不同</li><li>但这是有意的：autoresearch 为<strong>你的</strong>硬件找最优模型</li></ul></div></div><div class="modal-section"><h4>📌 决策 2: 单文件可编辑 vs 完全开放</h4><p>限制 Agent 只改 train.py 看似限制了能力，但实际上：</p><ul><li>防止 Agent 修改评估函数"作弊"</li><li>固定数据管线确保实验可重现</li><li>diff 可审计：人类可以理解每次修改的意图</li></ul></div><div class="modal-section"><h4>📌 决策 3: BPB vs Perplexity</h4><ul><li><strong>BPB</strong>: nats→bits 转换，按 byte (非 token) 归一化</li><li>改变 vocab size 不影响 BPB → 架构搜索更公平</li><li>代价: 需要额外的 token_bytes 查找表，计算稍慢</li></ul></div><div class="modal-section"><h4>📌 决策 4: 编译预热排除</h4><ul><li>前 10 步 <code>torch.compile</code> JIT 编译，耗时远超正常 step</li><li>不计入 TIME_BUDGET → 评估的是训练性能，不是编译性能</li></ul></div><div class="modal-section"><h4>🔗 相关设计模式</h4><p><span class="modal-tag">Fixed-Budget Design</span><span class="modal-tag">Sandboxed Mutation</span><span class="modal-tag">Vocab-Invariant Metric</span><span class="modal-tag">Warm-Start Exclusion</span></p><div class="modal-highlight"><strong>核心思路：</strong>每个约束都是精心设计的围栏——给 Agent 最大自由度的同时防止常见陷阱 (作弊、不可比、编译干扰)。</div></div></div></div>
+
+<!-- ==================== JAVASCRIPT ==================== -->
+<script>
+(function() {
+    const slides = document.querySelectorAll('.slide');
+    const progressBar = document.getElementById('progressBar');
+    const navDots = document.getElementById('navDots');
+    const slideNumber = document.getElementById('slideNumber');
+    const totalSlides = slides.length;
+    let currentSlide = 0;
+    slides.forEach((_, i) => { const d = document.createElement('button'); d.className = 'nav-dot'; d.setAttribute('aria-label', `Slide ${i+1}`); d.addEventListener('click', () => goToSlide(i)); navDots.appendChild(d); });
+    const dots = document.querySelectorAll('.nav-dot');
+    function updateSlideState() { progressBar.style.width = `${((currentSlide+1)/totalSlides)*100}%`; slideNumber.textContent = `${currentSlide+1} / ${totalSlides}`; dots.forEach((d,i) => d.classList.toggle('active', i===currentSlide)); slides.forEach((s,i) => s.classList.toggle('visible', i===currentSlide)); }
+    window.goToSlide = function goToSlide(i) { if (i>=0 && i<totalSlides) { currentSlide=i; slides[i].scrollIntoView({behavior:'smooth'}); updateSlideState(); } }
+    document.addEventListener('keydown', e => {
+        if (document.getElementById('helpOverlay').classList.contains('active')) { document.getElementById('helpOverlay').classList.remove('active'); return; }
+        if (document.querySelector('.modal-overlay.active')) return;
+        switch(e.key) { case 'ArrowRight': case 'ArrowDown': case ' ': case 'PageDown': e.preventDefault(); goToSlide(currentSlide+1); break; case 'ArrowLeft': case 'ArrowUp': case 'PageUp': e.preventDefault(); goToSlide(currentSlide-1); break; case 'Home': e.preventDefault(); goToSlide(0); break; case 'End': e.preventDefault(); goToSlide(totalSlides-1); break; case 'Enter': case 'd': case 'D': e.preventDefault(); var btn=slides[currentSlide].querySelector('.detail-btn'); if(btn) btn.click(); break; case '?': e.preventDefault(); document.getElementById('helpOverlay').classList.toggle('active'); break; }
+    });
+    let isScrolling = false;
+    document.addEventListener('wheel', e => { if (document.querySelector('.modal-overlay.active')) return; if (isScrolling) return; isScrolling=true; if (e.deltaY>0) goToSlide(currentSlide+1); else goToSlide(currentSlide-1); setTimeout(()=>{isScrolling=false;},800); }, {passive:true});
+    let touchStartY = 0;
+    document.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, {passive:true});
+    document.addEventListener('touchend', e => { if (document.querySelector('.modal-overlay.active')) return; const dy = touchStartY - e.changedTouches[0].clientY; if (Math.abs(dy) > 50) { if (dy > 0) goToSlide(currentSlide+1); else goToSlide(currentSlide-1); } }, {passive:true});
+    goToSlide(0);
+})();
+function openModal(id) { const m=document.getElementById(id); if(m){m.classList.add('active');document.body.style.overflow='hidden';} }
+function closeModal(id) { const m=document.getElementById(id); if(m){m.classList.remove('active');document.body.style.overflow='';} }
+document.querySelectorAll('.modal-overlay').forEach(m => { m.addEventListener('click', e => { if(e.target===m){m.classList.remove('active');document.body.style.overflow='';} }); });
+document.addEventListener('keydown', e => { if(e.key==='Escape') { document.querySelectorAll('.modal-overlay.active').forEach(m=>{m.classList.remove('active');document.body.style.overflow='';}); document.getElementById('helpOverlay').classList.remove('active'); } });
+document.getElementById('helpOverlay').addEventListener('click', e => { if(e.target===document.getElementById('helpOverlay')) e.target.classList.remove('active'); });
+</script>
+</body>
+</html>
